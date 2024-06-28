@@ -5,7 +5,7 @@ Command-line console application to import/export user secrets for a given Visua
 To export user secrets for a solution:
 
 ```
-UserSecretsTransferConsole.exe -export [OutputZipFilePath] [OptionalPassword]
+UserSecretsTransferConsole.exe -export [SolutionFilePath] [OutputZipFilePath] [OptionalPassword]
 ```
 
 To import user secrets for a solution:
