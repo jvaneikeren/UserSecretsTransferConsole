@@ -105,7 +105,10 @@ public static class UserSecretsTransferUtility
             }
         }
 
-        return list;
+        // Return the distinct list in case some secret files are shared.
+        return list
+            .Distinct()
+            .ToList();
     }
 
     private static string GetUserSecretsId(
