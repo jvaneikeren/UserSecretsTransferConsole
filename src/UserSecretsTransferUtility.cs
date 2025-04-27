@@ -1,5 +1,6 @@
 ﻿using Microsoft.Build.Construction;
 using Microsoft.Extensions.Configuration.UserSecrets;
+using Orbital7.Extensions;
 using Orbital7.Extensions.Encryption;
 using System.IO.Compression;
 
