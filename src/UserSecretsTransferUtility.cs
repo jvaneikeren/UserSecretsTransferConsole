@@ -11,7 +11,7 @@ public static class UserSecretsTransferUtility
     public static int Export(
         string solutionFilePath,
         string exportFilePath,
-        string password = null)
+        string? password = null)
     {
         var solutionFile = SolutionFile.Parse(solutionFilePath);
         var projectFilePaths = solutionFile.ProjectsInOrder
@@ -28,27 +28,31 @@ public static class UserSecretsTransferUtility
 
     public static int Import(
         string exportFilePath,
-        string password = null)
+        string? password = null)
     {
         using (var zipFile = ZipFile.OpenRead(exportFilePath))
         {
             foreach (var entry in zipFile.Entries)
             {
                 var secretsFilePath = PathHelper.GetSecretsPathFromSecretsId(entry.Name);
+                var secretsId = Path.GetFileNameWithoutExtension(secretsFilePath);
 
-                using (var entryStream = entry.Open())
+                if (secretsId.HasText())
                 {
-                    var contents = entryStream.ReadAll();
-                    if (password.HasText())
+                    using (var entryStream = entry.Open())
                     {
-                        contents = EncryptionHelper.Decrypt(
-                            contents,
-                            password,
-                            EncryptionMethod.TripleDES);
-                    }
+                        var contents = entryStream.ReadAll();
+                        if (password.HasText())
+                        {
+                            contents = EncryptionHelper.Decrypt(
+                                contents,
+                                password,
+                                EncryptionMethod.TripleDES);
+                        }
 
-                    FileSystemHelper.EnsureFolderExists(Path.GetDirectoryName(secretsFilePath));
-                    File.WriteAllBytes(secretsFilePath, contents);
+                        FileSystemHelper.EnsureFolderExists(secretsId);
+                        File.WriteAllBytes(secretsFilePath, contents);
+                    }
                 }
             }
 
@@ -59,7 +63,7 @@ public static class UserSecretsTransferUtility
     private static void CreateUserSecretsZipFile(
         List<string> userSecretsIds,
         string zipFilePath,
-        string password = null)
+        string? password = null)
     {
         if (File.Exists(zipFilePath))
         {
@@ -99,7 +103,7 @@ public static class UserSecretsTransferUtility
 
         foreach (var projectFilePath in projectFilePaths)
         {
-            var userSecretsId = GetUserSecretsId(projectFilePath);
+            var userSecretsId = TryGetUserSecretsId(projectFilePath);
             if (userSecretsId.HasText())
             {
                 list.Add(userSecretsId);
@@ -112,7 +116,7 @@ public static class UserSecretsTransferUtility
             .ToList();
     }
 
-    private static string GetUserSecretsId(
+    private static string? TryGetUserSecretsId(
         string projectFilePath)
     {
         var projectFile = ProjectRootElement.Open(projectFilePath);
