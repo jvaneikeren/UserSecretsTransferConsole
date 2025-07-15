@@ -51,7 +51,9 @@ public static class UserSecretsTransferUtility
                         }
 
                         FileSystemHelper.EnsureFolderExists(secretsId);
-                        File.WriteAllBytes(secretsFilePath, contents);
+                        File.WriteAllBytes(
+                            secretsFilePath, 
+                            contents);
                     }
                 }
             }
@@ -90,7 +92,10 @@ public static class UserSecretsTransferUtility
                 var entry = zipFile.CreateEntry(userSecretsId);
                 using (var entryStream = entry.Open())
                 {
-                    entryStream.Write(contents, 0, contents.Length);
+                    entryStream.Write(
+                        contents, 
+                        0, 
+                        contents.Length);
                 }
             }
         }
@@ -121,17 +126,10 @@ public static class UserSecretsTransferUtility
     {
         var projectFile = ProjectRootElement.Open(projectFilePath);
 
-        foreach (var propertyGroup in projectFile.PropertyGroups)
-        {
-            foreach (var property in propertyGroup.Properties)
-            {
-                if (property.Name == "UserSecretsId")
-                {
-                    return property.Value;
-                }
-            }
-        }
-
-        return null;
+        return projectFile.PropertyGroups
+            .SelectMany(x => x.Properties)
+            .Where(x => x.Name == "UserSecretsId")
+            .Select(x => x.Value)
+            .FirstOrDefault();
     }
 }
