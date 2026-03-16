@@ -4,20 +4,46 @@ internal class Program
 {
     static void Main(string[] args)
     {
-        // TODO: Add command-line parameter checking and console output.
+        if (args.Length >= 3)
+        {
+            var command = args[0].ToLower();
 
-        if (args[0] == "-import")
-        {
-            UserSecretsTransferUtility.Import(
-                args[1],
-                args.Length < 3 ? null : args[2]);
+            // Handle import.
+            if (command == "-import")
+            {
+                int count = UserSecretsTransferUtility.Import(
+                    args[1],
+                    args.Length < 3 ? null : args[2]);
+
+                Console.WriteLine($"Successfully imported {count} UserSecrets file(s)");
+            }
+            // Handle export.
+            else if (command == "-export")
+            {
+                int count = UserSecretsTransferUtility.Export(
+                    args[1],
+                    args[2],
+                    args.Length < 4 ? null : args[3]);
+
+                Console.WriteLine($"Successfully exported {count} UserSecrets file(s)");
+            }
+            else
+            {
+                ShowUsage();
+            }
         }
-        else if (args[0] == "-export")
+        else
         {
-            UserSecretsTransferUtility.Export(
-                args[1],
-                args[2],
-                args.Length < 4 ? null : args[3]);
+            ShowUsage();
         }
+    }
+
+    private static void ShowUsage()
+    {
+        Console.WriteLine("Usage:");
+        Console.WriteLine("  To export UserSecrets files:");
+        Console.WriteLine("    UserSecretsTransferConsole -export <solutionFilePath> <exportFilePath> [password]");
+        Console.WriteLine("  To import UserSecrets files:");
+        Console.WriteLine("    UserSecretsTransferConsole -import <exportFilePath> [password]");
     }
 }

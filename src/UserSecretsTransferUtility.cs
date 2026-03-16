@@ -1,8 +1,9 @@
-﻿using Microsoft.Build.Construction;
-using Microsoft.Extensions.Configuration.UserSecrets;
+﻿using Microsoft.Extensions.Configuration.UserSecrets;
 using Orbital7.Extensions;
 using Orbital7.Extensions.Encryption;
 using System.IO.Compression;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace UserSecretsTransferConsole;
 
@@ -13,15 +14,16 @@ public static class UserSecretsTransferUtility
         string exportFilePath,
         string? password = null)
     {
-        var solutionFile = SolutionFile.Parse(solutionFilePath);
-        var projectFilePaths = solutionFile.ProjectsInOrder
-            .Where(x => x.ProjectType == SolutionProjectType.KnownToBeMSBuildFormat)
-            .Select(x => x.AbsolutePath)
-            .ToList();
+        var projectFilePaths = ParseSolutionForProjectFilePaths(
+            solutionFilePath);
 
-        var userSecretsIds = GatherUserSecretsIds(projectFilePaths);
+        var userSecretsIds = GatherUserSecretsIds(
+            projectFilePaths);
 
-        CreateUserSecretsZipFile(userSecretsIds, exportFilePath, password);
+        CreateUserSecretsZipFile(
+            userSecretsIds, 
+            exportFilePath, 
+            password);
 
         return userSecretsIds.Count;
     }
@@ -124,12 +126,150 @@ public static class UserSecretsTransferUtility
     private static string? TryGetUserSecretsId(
         string projectFilePath)
     {
-        var projectFile = ProjectRootElement.Open(projectFilePath);
+        // Avoid Microsoft.Build APIs that depend on Visual Studio private assemblies.
+        // Load the project XML and look for a <UserSecretsId> element in any namespace.
+        try
+        {
+            if (!File.Exists(projectFilePath))
+            {
+                return null;
+            }
 
-        return projectFile.PropertyGroups
-            .SelectMany(x => x.Properties)
-            .Where(x => x.Name == "UserSecretsId")
-            .Select(x => x.Value)
-            .FirstOrDefault();
+            var doc = XDocument.Load(projectFilePath);
+
+            // Find the first element whose local name equals "UserSecretsId".
+            var userSecretsElement = doc
+                .Descendants()
+                .FirstOrDefault(x => string.Equals(
+                    x.Name.LocalName, 
+                    "UserSecretsId", 
+                    StringComparison.OrdinalIgnoreCase));
+
+            var value = userSecretsElement?.Value?.Trim();
+
+            return string.IsNullOrEmpty(value) ? null : value;
+        }
+        catch
+        {
+            // Be defensive: if the project file is malformed or unreadable, return null.
+            return null;
+        }
+    }
+
+    private static List<string> ParseSolutionForProjectFilePaths(
+        string solutionFilePath)
+    {
+        // NOTE: We used to use Microsoft.Build for this, but as of version 18.x,
+        // the assembly used for this is private and the code below will error out.
+        //
+        //var solutionFile = SolutionFile.Parse(solutionFilePath);
+        //var projectFilePaths = solutionFile.ProjectsInOrder
+        //    .Where(x => x.ProjectType == SolutionProjectType.KnownToBeMSBuildFormat)
+        //    .Select(x => x.AbsolutePath)
+        //    .ToList();
+        //
+        // ...and thus, we now need to parse the solution file ourselves.
+
+        
+        var solutionFileExtension = Path.GetExtension(solutionFilePath);
+        var solutionFolderPath = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
+
+        // Common project extensions considered MSBuild projects.
+        var projectFileExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".csproj", ".vbproj", ".fsproj", ".vcxproj", ".shproj"
+        };
+
+        // Handle by solution file extension which indicates the format of the solution file.
+        if (solutionFileExtension == ".sln")
+        {
+            return ParseSlnFileForProjectFilePaths(
+                solutionFilePath,
+                solutionFolderPath,
+                projectFileExtensions);
+        }
+        else if (solutionFileExtension == ".slnx")
+        {
+            return ParseSlnxFileForProjectFilePaths(
+                solutionFilePath, 
+                solutionFolderPath, 
+                projectFileExtensions);
+        }
+        else
+        {
+            throw new Exception($"Unrecognized solution file extension: {solutionFileExtension}");
+        }
+    }
+
+    private static List<string> ParseSlnFileForProjectFilePaths(
+        string slnFilePath,
+        string solutionFolderPath,
+        HashSet<string> acceptedExtensions)
+    {
+        var list = new List<string>();
+
+        // Project("{...}") = "Name", "path\to\proj.csproj", "{...}"
+        var projectLineRegex = new Regex(
+            "^Project\\(\"(?<typeGuid>[^\"]+)\"\\)\\s*=\\s*\"(?<name>[^\"]+)\"\\s*,\\s*\"(?<path>[^\"]+)\"\\s*,\\s*\"(?<guid>[^\"]+)\"",
+            RegexOptions.Compiled);
+
+        foreach (var line in File.ReadLines(slnFilePath))
+        {
+            var match = projectLineRegex.Match(line);
+            if (!match.Success) continue;
+
+            var relativePath = match.Groups["path"].Value
+                .Replace('/', Path.DirectorySeparatorChar)
+                .Replace('\\', Path.DirectorySeparatorChar);
+
+            var resolvedPath = Path.IsPathRooted(relativePath)
+                ? relativePath
+                : Path.GetFullPath(Path.Combine(solutionFolderPath, relativePath));
+
+            if (File.Exists(resolvedPath) && acceptedExtensions.Contains(Path.GetExtension(resolvedPath)))
+            {
+                list.Add(resolvedPath);
+            }
+        }
+
+        return list;
+    }
+
+    private static List<string> ParseSlnxFileForProjectFilePaths(
+        string slnxFilePath,
+        string solutionFolderPath,
+        HashSet<string> acceptedExtensions)
+    {
+        var list = new List<string>();
+
+        var doc2 = XDocument.Load(slnxFilePath);
+        var projectPaths = doc2
+          .Descendants()
+          .Where(e => string.Equals(e.Name.LocalName, "Project", StringComparison.OrdinalIgnoreCase))
+          .Select(e => (string?)e.Attribute("Path"))
+          .Where(p => !string.IsNullOrEmpty(p))
+          .ToList();
+
+        foreach (var projectPath in projectPaths)
+        {
+            var normalizedProjectPath = projectPath?.Trim()
+                .Replace('/', Path.DirectorySeparatorChar)
+                .Replace('\\', Path.DirectorySeparatorChar);
+
+            if (normalizedProjectPath.HasText())
+            {
+                var resolvedPath = Path.IsPathRooted(normalizedProjectPath) ?
+                    normalizedProjectPath :
+                    Path.GetFullPath(Path.Combine(solutionFolderPath, normalizedProjectPath));
+
+                if (File.Exists(resolvedPath) && 
+                    acceptedExtensions.Contains(Path.GetExtension(resolvedPath)))
+                {
+                    list.Add(resolvedPath);
+                }
+            }
+        }
+
+        return list;
     }
 }
