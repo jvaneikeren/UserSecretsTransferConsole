@@ -4,7 +4,7 @@ internal class Program
 {
     static void Main(string[] args)
     {
-        if (args.Length >= 3)
+        if (args.Length >= 2)
         {
             var command = args[0].ToLower();
 

@@ -7,6 +7,7 @@ using System.Xml.Linq;
 
 namespace UserSecretsTransferConsole;
 
+// TODO: move to Orbital7.Extensions.
 public static class UserSecretsTransferUtility
 {
     public static int Export(
@@ -52,10 +53,15 @@ public static class UserSecretsTransferUtility
                                 EncryptionMethod.TripleDES);
                         }
 
-                        FileSystemHelper.EnsureFolderExists(secretsId);
-                        File.WriteAllBytes(
-                            secretsFilePath, 
-                            contents);
+                        var secretsFolderPath = Path.GetDirectoryName(secretsFilePath);
+                        if (secretsFolderPath.HasText())
+                        {
+                            FileSystemHelper.EnsureFolderExists(
+                                secretsFolderPath);
+                            File.WriteAllBytes(
+                                secretsFilePath,
+                                contents);
+                        }
                     }
                 }
             }
