@@ -1,8 +1,11 @@
-﻿namespace UserSecretsTransferConsole;
+﻿using Orbital7.Extensions;
+
+namespace UserSecretsTransferConsole;
 
 internal class Program
 {
-    static void Main(string[] args)
+    static async Task Main(
+        string[] args)
     {
         if (args.Length >= 2)
         {
@@ -11,7 +14,7 @@ internal class Program
             // Handle import.
             if (command == "-import")
             {
-                int count = UserSecretsTransferUtility.Import(
+                int count = await UserSecretsHelper.ImportAsync(
                     args[1],
                     args.Length < 3 ? null : args[2]);
 
@@ -20,7 +23,7 @@ internal class Program
             // Handle export.
             else if (command == "-export")
             {
-                int count = UserSecretsTransferUtility.Export(
+                int count = await UserSecretsHelper.ExportForSolutionAsync(
                     args[1],
                     args[2],
                     args.Length < 4 ? null : args[3]);
