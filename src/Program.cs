@@ -18,7 +18,7 @@ internal class Program
                     args[1],
                     args.Length < 3 ? null : args[2]);
 
-                Console.WriteLine($"Successfully imported {count} UserSecrets file(s)");
+                Console.WriteLine($"Successfully imported {count} UserSecrets file(s) from {Path.GetFileName(args[1])}");
             }
             // Handle export.
             else if (command == "-export")
@@ -28,7 +28,7 @@ internal class Program
                     args[2],
                     args.Length < 4 ? null : args[3]);
 
-                Console.WriteLine($"Successfully exported {count} UserSecrets file(s)");
+                Console.WriteLine($"Successfully exported {count} UserSecrets file(s) to {Path.GetFileName(args[2])}");
             }
             else
             {
